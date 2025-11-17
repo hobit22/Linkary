@@ -1,89 +1,117 @@
-# Linkary Backend
+# Linkary Backend (FastAPI)
 
-Node.js + Express + MongoDB backend for Linkary
+Modern Python-based backend for Linkary knowledge management system.
+
+## Features
+
+- 🚀 **FastAPI**: High-performance async Python web framework
+- 🗄️ **MongoDB**: NoSQL database with Motor async driver
+- 🔍 **Metadata Extraction**: Automatic extraction from URLs
+- 📊 **Knowledge Graph**: Relationship visualization support
+- 🤖 **AI-Ready**: Easy integration with AI/ML libraries
+
+## Tech Stack
+
+- **FastAPI**: Web framework
+- **Motor**: Async MongoDB driver
+- **Pydantic**: Data validation
+- **BeautifulSoup4**: HTML parsing for metadata
+- **Uvicorn**: ASGI server
+
+## Setup
+
+### 1. Create Virtual Environment
+
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Configure Environment
+
+Create `.env` file:
+
+```
+PORT=8000
+MONGODB_URI=mongodb://localhost:27017/linkary
+ENVIRONMENT=development
+```
+
+### 4. Run Server
+
+```bash
+# Development (with auto-reload)
+python -m app.main
+
+# Or with uvicorn directly
+uvicorn app.main:app --reload --port 8000
+```
 
 ## API Endpoints
 
 ### Links
 
 - `GET /api/links` - Get all links
-- `GET /api/links/:id` - Get single link
+- `GET /api/links/{id}` - Get single link
 - `POST /api/links` - Create new link
-- `PUT /api/links/:id` - Update link
-- `DELETE /api/links/:id` - Delete link
-- `GET /api/links/graph` - Get graph data for visualization
+- `PUT /api/links/{id}` - Update link
+- `DELETE /api/links/{id}` - Delete link
 
-### Health Check
+### Graph
 
-- `GET /health` - Server health check
+- `GET /api/links/graph` - Get graph visualization data
 
-## Installation
+### Health
+
+- `GET /health` - Health check
+
+## API Documentation
+
+Once running, visit:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## Project Structure
+
+```
+backend/
+├── app/
+│   ├── main.py              # FastAPI application
+│   ├── config.py            # Configuration
+│   ├── database.py          # MongoDB connection
+│   ├── models/              # Database models
+│   ├── schemas/             # Pydantic schemas
+│   ├── routers/             # API endpoints
+│   ├── services/            # Business logic
+│   └── utils/               # Utilities
+├── requirements.txt         # Python dependencies
+├── .env                     # Environment variables
+└── README.md
+```
+
+## Development
+
+### Adding New Dependencies
 
 ```bash
-npm install
+pip install package-name
+pip freeze > requirements.txt
 ```
 
-## Configuration
+### Code Style
 
-Create a `.env` file in the backend directory:
+Follow PEP 8 Python style guide.
 
-```env
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/linkary
-NODE_ENV=development
-```
+## Future Enhancements
 
-## Running the server
-
-```bash
-# Development mode with auto-reload
-npm run dev
-
-# Production mode
-npm start
-```
-
-## API Usage Examples
-
-### Create a new link
-
-```bash
-curl -X POST http://localhost:5000/api/links \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://example.com",
-    "tags": ["example", "test"],
-    "category": "Reference",
-    "notes": "Example website"
-  }'
-```
-
-### Get all links
-
-```bash
-curl http://localhost:5000/api/links
-```
-
-### Get graph data
-
-```bash
-curl http://localhost:5000/api/links/graph
-```
-
-### Update a link
-
-```bash
-curl -X PUT http://localhost:5000/api/links/{id} \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Updated Title",
-    "tags": ["updated"],
-    "relatedLinks": ["{relatedLinkId}"]
-  }'
-```
-
-### Delete a link
-
-```bash
-curl -X DELETE http://localhost:5000/api/links/{id}
-```
+- [ ] AI-powered auto-tagging
+- [ ] Content summarization
+- [ ] Similar link recommendations
+- [ ] Full-text search
+- [ ] Vector embeddings for semantic search
