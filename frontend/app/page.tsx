@@ -1,125 +1,120 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { api, Link, GraphData } from '@/lib/api';
+import { useState } from 'react';
 import KnowledgeGraph from '@/components/KnowledgeGraph';
-import AddLinkForm from '@/components/AddLinkForm';
 import LinkList from '@/components/LinkList';
+import Header from '@/components/Header';
+import Notification from '@/components/Notification';
+import GoogleLoginButton from '@/components/GoogleLoginButton';
+import { useLinks } from '@/hooks/useLinks';
+import { useClipboardPaste } from '@/hooks/useClipboardPaste';
+import { useNotification } from '@/hooks/useNotification';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Home() {
-  const [links, setLinks] = useState<Link[]>([]);
-  const [graphData, setGraphData] = useState<GraphData>({ nodes: [], edges: [] });
-  const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'graph' | 'list'>('graph');
+  const [view, setView] = useState<'graph' | 'list'>('list');
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { links, graphData, loading: linksLoading, refetch } = useLinks();
+  const { notification, showNotification } = useNotification();
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [linksData, graphDataResult] = await Promise.all([
-        api.getLinks(),
-        api.getGraphData(),
-      ]);
-      setLinks(linksData);
-      setGraphData(graphDataResult);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useClipboardPaste({
+    onSuccess: () => {
+      showNotification('Link added successfully!');
+      refetch();
+    },
+    onError: (message) => showNotification(message),
+  });
 
   const handleNodeClick = (node: any) => {
-    if (node.url) {
-      window.open(node.url, '_blank');
+    if (node.id) {
+      window.location.href = `/links/${node.id}`;
     }
   };
 
+  const stats = {
+    totalLinks: links.length,
+    categories: new Set(links.map(l => l.category)).size,
+    tags: new Set(links.flatMap(l => l.tags)).size,
+  };
+
+  // Show loading state while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Notification message={notification} />
+        <Header view={view} onViewChange={setView} showViewSwitcher={false} />
+        <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center h-96">
+            <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Show login UI if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Notification message={notification} />
+        <Header view={view} onViewChange={setView} showViewSwitcher={false} />
+        <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center justify-center h-96 gap-8">
+            <div className="text-center">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+                Welcome to Linkary
+              </h2>
+              <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
+                Sign in with Google to start organizing your links
+              </p>
+              <GoogleLoginButton
+                onSuccess={() => showNotification('Successfully logged in!')}
+                onError={(msg) => showNotification(msg)}
+              />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Show main app when authenticated
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Linkary
-            </h1>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setView('graph')}
-                className={`px-4 py-2 rounded-md ${
-                  view === 'graph'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                }`}
-              >
-                Graph View
-              </button>
-              <button
-                onClick={() => setView('list')}
-                className={`px-4 py-2 rounded-md ${
-                  view === 'list'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                }`}
-              >
-                List View
-              </button>
-            </div>
-          </div>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Your personal knowledge library
-          </p>
-        </div>
-      </header>
+      <Notification message={notification} />
+      <Header view={view} onViewChange={setView} />
 
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1">
-            <AddLinkForm onLinkAdded={fetchData} />
-
-            <div className="mt-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                Stats
-              </h3>
-              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <div>Total Links: {links.length}</div>
-                <div>Categories: {new Set(links.map(l => l.category)).size}</div>
-                <div>Tags: {new Set(links.flatMap(l => l.tags)).size}</div>
-              </div>
-            </div>
+        {linksLoading ? (
+          <div className="flex items-center justify-center h-96">
+            <div className="text-gray-500 dark:text-gray-400">Loading...</div>
           </div>
-
-          <div className="lg:col-span-2">
-            {loading ? (
-              <div className="flex items-center justify-center h-96">
-                <div className="text-gray-500 dark:text-gray-400">Loading...</div>
-              </div>
-            ) : view === 'graph' ? (
-              <div>
-                <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-                  Knowledge Graph
-                </h2>
-                {graphData.nodes.length > 0 ? (
-                  <KnowledgeGraph data={graphData} onNodeClick={handleNodeClick} />
-                ) : (
-                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                    Add links to see your knowledge graph
-                  </div>
-                )}
-              </div>
+        ) : view === 'graph' ? (
+          <div>
+            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+              Knowledge Graph
+            </h2>
+            {graphData.nodes.length > 0 ? (
+              <KnowledgeGraph data={graphData} onNodeClick={handleNodeClick} />
             ) : (
-              <div>
-                <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-                  All Links
-                </h2>
-                <LinkList links={links} onLinkDeleted={fetchData} />
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                Add links to see your knowledge graph
               </div>
             )}
           </div>
-        </div>
+        ) : (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                All Links
+              </h2>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {stats.totalLinks} links · {stats.categories} categories · {stats.tags} tags
+              </div>
+            </div>
+            <LinkList links={links} onLinkDeleted={refetch} />
+          </div>
+        )}
       </main>
     </div>
   );
