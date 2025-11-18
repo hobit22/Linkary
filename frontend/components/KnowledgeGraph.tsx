@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { GraphData } from '@/lib/api';
+import { GraphData, Category } from '@/lib/api';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   ssr: false,
@@ -48,15 +48,19 @@ export default function KnowledgeGraph({ data, onNodeClick }: KnowledgeGraphProp
 
   // Color scheme for different categories
   const getCategoryColor = (category: string) => {
-    const colors: { [key: string]: string } = {
-      'Uncategorized': '#94a3b8',
-      'Reference': '#3b82f6',
-      'Article': '#10b981',
-      'Tutorial': '#f59e0b',
-      'Tool': '#8b5cf6',
-      'Documentation': '#ec4899',
+    const colors: Record<string, string> = {
+      [Category.ARTICLE]: '#10b981',        // green
+      [Category.TUTORIAL]: '#f59e0b',        // orange
+      [Category.DOCUMENTATION]: '#ec4899',   // pink
+      [Category.TOOL]: '#8b5cf6',            // purple
+      [Category.VIDEO]: '#ef4444',           // red
+      [Category.REPOSITORY]: '#3b82f6',      // blue
+      [Category.RESEARCH]: '#14b8a6',        // teal
+      [Category.NEWS]: '#f97316',            // orange-red
+      [Category.REFERENCE]: '#06b6d4',       // cyan
+      [Category.OTHER]: '#94a3b8',           // gray
     };
-    return colors[category] || '#94a3b8';
+    return colors[category] || colors[Category.OTHER];
   };
 
   return (

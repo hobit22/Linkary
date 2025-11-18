@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { Link } from '@/lib/api';
 import { api } from '@/lib/api';
 
@@ -9,7 +10,10 @@ interface LinkListProps {
 }
 
 export default function LinkList({ links, onLinkDeleted }: LinkListProps) {
-  const handleDelete = async (id: string) => {
+  const router = useRouter();
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (confirm('Are you sure you want to delete this link?')) {
       try {
         await api.deleteLink(id);
@@ -33,7 +37,8 @@ export default function LinkList({ links, onLinkDeleted }: LinkListProps) {
       {links.map((link) => (
         <div
           key={link._id}
-          className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow"
+          onClick={() => router.push(`/links/${link._id}`)}
+          className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer"
         >
           <div className="flex items-start gap-3">
             {link.favicon && (
@@ -108,8 +113,8 @@ export default function LinkList({ links, onLinkDeleted }: LinkListProps) {
               {new Date(link.createdAt).toLocaleDateString()}
             </span>
             <button
-              onClick={() => handleDelete(link._id)}
-              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+              onClick={(e) => handleDelete(link._id, e)}
+              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 z-10"
             >
               Delete
             </button>
