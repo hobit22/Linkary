@@ -1,5 +1,7 @@
+"""Database connection management."""
+
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from app.config import get_settings
+from app.core.config import get_settings
 
 settings = get_settings()
 
@@ -9,7 +11,11 @@ database: AsyncIOMotorDatabase = None
 
 
 async def connect_to_mongo():
-    """Connect to MongoDB"""
+    """
+    Connect to MongoDB.
+
+    Establishes connection and stores client and database instances globally.
+    """
     global client, database
     client = AsyncIOMotorClient(settings.MONGODB_URI)
     database = client.get_database()
@@ -17,7 +23,11 @@ async def connect_to_mongo():
 
 
 async def close_mongo_connection():
-    """Close MongoDB connection"""
+    """
+    Close MongoDB connection.
+
+    Properly closes the MongoDB client connection.
+    """
     global client
     if client:
         client.close()
@@ -25,5 +35,10 @@ async def close_mongo_connection():
 
 
 def get_database() -> AsyncIOMotorDatabase:
-    """Get database instance"""
+    """
+    Get database instance.
+
+    Returns:
+        MongoDB database instance
+    """
     return database

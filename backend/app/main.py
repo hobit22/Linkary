@@ -1,17 +1,23 @@
+"""FastAPI application entry point."""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.config import get_settings
-from app.database import connect_to_mongo, close_mongo_connection
-from app.routers import links
+from app.core.config import get_settings
+from app.core.database import connect_to_mongo, close_mongo_connection
+from app.api.v1.router import api_v1_router
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan events"""
+    """
+    Lifespan context manager for startup and shutdown events.
+
+    Handles MongoDB connection lifecycle.
+    """
     # Startup
     await connect_to_mongo()
     yield
@@ -29,24 +35,14 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify exact origins
+    allow_origins=[settings.FRONTEND_URL],  # Restrict to frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(links.router)
-
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "success": True,
-        "message": "Linkary API is running",
-        "version": "2.0.0"
-    }
+# Include API v1 router
+app.include_router(api_v1_router)
 
 
 if __name__ == "__main__":

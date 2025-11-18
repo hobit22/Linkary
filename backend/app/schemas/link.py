@@ -1,26 +1,30 @@
+"""Pydantic schemas for API request/response validation."""
+
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, HttpUrl
 
+from app.core.constants import CategoryEnum, DEFAULT_CATEGORY
+
 
 class LinkBase(BaseModel):
-    """Base Link schema"""
+    """Base Link schema."""
 
     url: str
     tags: Optional[List[str]] = []
-    category: Optional[str] = "Uncategorized"
+    category: Optional[str] = DEFAULT_CATEGORY
     notes: Optional[str] = ""
     related_links: Optional[List[str]] = []
 
 
 class LinkCreate(LinkBase):
-    """Schema for creating a new link"""
+    """Schema for creating a new link."""
 
     pass
 
 
 class LinkUpdate(BaseModel):
-    """Schema for updating a link"""
+    """Schema for updating a link."""
 
     title: Optional[str] = None
     description: Optional[str] = None
@@ -31,7 +35,7 @@ class LinkUpdate(BaseModel):
 
 
 class LinkResponse(BaseModel):
-    """Schema for link response"""
+    """Schema for link response."""
 
     id: str = Field(alias="_id")
     url: str
@@ -52,7 +56,7 @@ class LinkResponse(BaseModel):
 
 
 class GraphNode(BaseModel):
-    """Schema for graph node"""
+    """Schema for graph node."""
 
     id: str
     label: str
@@ -62,14 +66,14 @@ class GraphNode(BaseModel):
 
 
 class GraphEdge(BaseModel):
-    """Schema for graph edge"""
+    """Schema for graph edge."""
 
     source: str
     target: str
 
 
 class GraphData(BaseModel):
-    """Schema for graph data"""
+    """Schema for graph data."""
 
     nodes: List[GraphNode]
     edges: List[GraphEdge]

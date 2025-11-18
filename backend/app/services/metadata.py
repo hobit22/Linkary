@@ -1,20 +1,24 @@
+"""Service for extracting metadata from URLs."""
+
 import requests
 from bs4 import BeautifulSoup
 from typing import Dict
 from urllib.parse import urljoin, urlparse
 
+from app.core.constants import USER_AGENT, DEFAULT_REQUEST_TIMEOUT
+
 
 class MetadataExtractor:
-    """Extract metadata from URLs"""
+    """Extract metadata from URLs."""
 
     def __init__(self):
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            'User-Agent': USER_AGENT
         }
 
     def extract(self, url: str) -> Dict[str, str]:
         """
-        Extract metadata from a URL
+        Extract metadata from a URL.
 
         Args:
             url: The URL to extract metadata from
@@ -23,7 +27,9 @@ class MetadataExtractor:
             Dictionary containing title, description, favicon, and image
         """
         try:
-            response = requests.get(url, headers=self.headers, timeout=10)
+            response = requests.get(
+                url, headers=self.headers, timeout=DEFAULT_REQUEST_TIMEOUT
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
 
@@ -46,7 +52,7 @@ class MetadataExtractor:
             }
 
     def _extract_title(self, soup: BeautifulSoup, url: str) -> str:
-        """Extract page title"""
+        """Extract page title."""
         # Try OpenGraph title
         og_title = soup.find('meta', property='og:title')
         if og_title and og_title.get('content'):
@@ -66,7 +72,7 @@ class MetadataExtractor:
         return url
 
     def _extract_description(self, soup: BeautifulSoup) -> str:
-        """Extract page description"""
+        """Extract page description."""
         # Try OpenGraph description
         og_desc = soup.find('meta', property='og:description')
         if og_desc and og_desc.get('content'):
@@ -85,7 +91,7 @@ class MetadataExtractor:
         return ''
 
     def _extract_favicon(self, soup: BeautifulSoup, url: str) -> str:
-        """Extract favicon URL"""
+        """Extract favicon URL."""
         # Try standard favicon link
         favicon = soup.find('link', rel=lambda x: x and 'icon' in x.lower())
         if favicon and favicon.get('href'):
@@ -96,7 +102,7 @@ class MetadataExtractor:
         return f"{parsed.scheme}://{parsed.netloc}/favicon.ico"
 
     def _extract_image(self, soup: BeautifulSoup, url: str) -> str:
-        """Extract preview image"""
+        """Extract preview image."""
         # Try OpenGraph image
         og_image = soup.find('meta', property='og:image')
         if og_image and og_image.get('content'):
@@ -115,7 +121,7 @@ class MetadataExtractor:
         return ''
 
     def _make_absolute_url(self, link: str, base_url: str) -> str:
-        """Convert relative URL to absolute URL"""
+        """Convert relative URL to absolute URL."""
         return urljoin(base_url, link)
 
 
