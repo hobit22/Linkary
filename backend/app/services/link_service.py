@@ -1,12 +1,12 @@
 """Business logic service for link operations."""
 
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from bson import ObjectId
 
 from app.repositories.link_repository import LinkRepository
 from app.services.metadata import metadata_extractor
-from app.schemas.link import LinkCreate, LinkUpdate, GraphData, GraphNode, GraphEdge
+from app.schemas.link import LinkCreate, LinkUpdate, GraphData, GraphNode, GraphEdge, LinkSearchRequest
 from app.core.exceptions import (
     LinkNotFoundException,
     LinkAlreadyExistsException,
@@ -223,3 +223,32 @@ class LinkService:
                 )
 
         return GraphData(nodes=nodes, edges=edges)
+
+    async def search_links(
+        self, user_id: str, search_request: LinkSearchRequest
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """
+        Search and filter links with pagination.
+
+        Args:
+            user_id: User's ObjectId as string
+            search_request: Search parameters including query, filters, and pagination
+
+        Returns:
+            Tuple of (list of matching link documents, total count)
+        """
+        # Calculate skip value for pagination
+        skip = (search_request.page - 1) * search_request.page_size
+
+        # Call repository search method
+        return await self.repository.search(
+            user_id=user_id,
+            query=search_request.q,
+            tags=search_request.tags,
+            category=search_request.category,
+            date_from=search_request.date_from,
+            date_to=search_request.date_to,
+            sort_by=search_request.sort_by,
+            skip=skip,
+            limit=search_request.page_size,
+        )

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, validator
 
 from app.core.constants import CategoryEnum, DEFAULT_CATEGORY
 
@@ -77,3 +77,43 @@ class GraphData(BaseModel):
 
     nodes: List[GraphNode]
     edges: List[GraphEdge]
+
+
+class LinkSearchRequest(BaseModel):
+    """Schema for link search request with filtering and pagination."""
+
+    q: Optional[str] = Field(None, description="Search query string for full-text search")
+    tags: Optional[List[str]] = Field(None, description="Filter by tags (must match all)")
+    category: Optional[str] = Field(None, description="Filter by category")
+    date_from: Optional[datetime] = Field(None, description="Filter by creation date (from)")
+    date_to: Optional[datetime] = Field(None, description="Filter by creation date (to)")
+    sort_by: Optional[str] = Field("created_at_desc", description="Sort field and direction")
+    page: int = Field(1, ge=1, description="Page number (1-indexed)")
+    page_size: int = Field(20, ge=1, le=100, description="Number of items per page")
+
+    @validator("sort_by")
+    def validate_sort_by(cls, v):
+        """Validate sort_by field values."""
+        allowed_values = ["created_at_desc", "created_at_asc", "title_asc", "title_desc", "score"]
+        if v not in allowed_values:
+            raise ValueError(f"sort_by must be one of: {', '.join(allowed_values)}")
+        return v
+
+
+class PaginatedLinkResponse(BaseModel):
+    """Schema for paginated link response."""
+
+    items: List[LinkResponse]
+    total: int = Field(description="Total number of matching items")
+    page: int = Field(description="Current page number")
+    page_size: int = Field(description="Items per page")
+    total_pages: int = Field(description="Total number of pages")
+
+    @validator("total_pages", always=True)
+    def calculate_total_pages(cls, v, values):
+        """Calculate total pages from total and page_size."""
+        if "total" in values and "page_size" in values:
+            total = values["total"]
+            page_size = values["page_size"]
+            return (total + page_size - 1) // page_size if page_size > 0 else 0
+        return v

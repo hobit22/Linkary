@@ -1,6 +1,6 @@
 """Repository for link database operations."""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -46,7 +46,7 @@ class LinkRepository:
             return []
 
         links = []
-        async for link in self.collection.find({"user_id": ObjectId(user_id)}):
+        async for link in self.collection.find({"user_id": ObjectId(user_id)}).sort("created_at", -1):
             links.append(link)
         return links
 
@@ -140,3 +140,105 @@ class LinkRepository:
             query["user_id"] = ObjectId(user_id)
         count = await self.collection.count_documents(query)
         return count > 0
+
+    async def search(
+        self,
+        user_id: str,
+        query: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        category: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        sort_by: str = "created_at_desc",
+        skip: int = 0,
+        limit: int = 20,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """
+        Search and filter links with pagination.
+
+        Args:
+            user_id: User's ObjectId as string
+            query: Optional search query for full-text search
+            tags: Optional list of tags to filter (must match all)
+            category: Optional category to filter by
+            date_from: Optional start date for filtering
+            date_to: Optional end date for filtering
+            sort_by: Sort field and direction (created_at_desc, created_at_asc, title_asc, score)
+            skip: Number of documents to skip (for pagination)
+            limit: Maximum number of documents to return
+
+        Returns:
+            Tuple of (list of matching link documents, total count)
+        """
+        if not ObjectId.is_valid(user_id):
+            return [], 0
+
+        # Build the base query
+        search_query: Dict[str, Any] = {"user_id": ObjectId(user_id)}
+
+        # Add text search if query provided
+        if query:
+            search_query["$text"] = {"$search": query}
+
+        # Filter by tags (must match all provided tags)
+        if tags:
+            search_query["tags"] = {"$all": tags}
+
+        # Filter by category
+        if category:
+            search_query["category"] = category
+
+        # Filter by date range
+        if date_from or date_to:
+            date_filter: Dict[str, Any] = {}
+            if date_from:
+                date_filter["$gte"] = date_from
+            if date_to:
+                date_filter["$lte"] = date_to
+            if date_filter:
+                search_query["created_at"] = date_filter
+
+        # Determine sort criteria and projection
+        projection: Optional[Dict[str, Any]] = None
+        use_text_score = sort_by == "score" and query
+
+        print("search_query",     search_query)
+
+        if use_text_score:
+            # Add text score to projection for sorting
+            projection = {"score": {"$meta": "textScore"}}
+
+        # Get total count for pagination
+        total_count = await self.collection.count_documents(search_query)
+
+        # Build the query cursor
+        cursor = self.collection.find(search_query, projection)
+
+        # Apply sorting
+        if sort_by == "created_at_desc":
+            cursor = cursor.sort("created_at", -1)
+        elif sort_by == "created_at_asc":
+            cursor = cursor.sort("created_at", 1)
+        elif sort_by == "title_asc":
+            cursor = cursor.sort("title", 1)
+        elif sort_by == "title_desc":
+            cursor = cursor.sort("title", -1)
+        elif use_text_score:
+            # Sort by text search score (descending)
+            cursor = cursor.sort([("score", {"$meta": "textScore"})])
+        else:
+            # Default fallback
+            cursor = cursor.sort("created_at", -1)
+
+        # Apply pagination
+        cursor = cursor.skip(skip).limit(limit)
+
+        # Execute query and collect results
+        results = []
+        async for doc in cursor:
+            # Remove the score field from results if it exists
+            if "score" in doc:
+                del doc["score"]
+            results.append(doc)
+
+        return results, total_count
