@@ -19,9 +19,13 @@ export default function KnowledgeGraph({ data, onNodeClick }: KnowledgeGraphProp
 
   useEffect(() => {
     const updateDimensions = () => {
+      const isMobile = window.innerWidth < 768;
+      const padding = isMobile ? 24 : 100;
+      const heightOffset = isMobile ? 300 : 200;
+
       setDimensions({
-        width: window.innerWidth - 100,
-        height: window.innerHeight - 200,
+        width: Math.max(300, window.innerWidth - padding),
+        height: Math.max(400, window.innerHeight - heightOffset),
       });
     };
 
@@ -64,7 +68,7 @@ export default function KnowledgeGraph({ data, onNodeClick }: KnowledgeGraphProp
   };
 
   return (
-    <div className="border border-gray-300 rounded-lg overflow-hidden bg-white dark:bg-gray-900">
+    <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-900 touch-none">
       <ForceGraph2D
         ref={graphRef}
         graphData={graphData}

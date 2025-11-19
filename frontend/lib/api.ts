@@ -78,6 +78,25 @@ export interface AuthResponse {
   user: User;
 }
 
+export interface SearchFilters {
+  q?: string;
+  tags?: string[];
+  category?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 // Axios interceptors for authentication
 axios.interceptors.request.use(
   (config) => {
@@ -166,6 +185,54 @@ export const api = {
     const response = await axios.get<ApiSuccessResponse<GraphData>>(`${API_BASE_URL}/links/graph`);
     return response.data.data;
   },
+
+  // Search links with filters
+  searchLinks: async (filters: SearchFilters): Promise<PaginatedResponse<Link>> => {
+    const params = new URLSearchParams();
+
+    if (filters.q) params.append('q', filters.q);
+    if (filters.tags && filters.tags.length > 0) {
+      filters.tags.forEach(tag => params.append('tags', tag));
+    }
+    if (filters.category) params.append('category', filters.category);
+    if (filters.dateFrom) params.append('date_from', filters.dateFrom);
+    if (filters.dateTo) params.append('date_to', filters.dateTo);
+    if (filters.sortBy) params.append('sort_by', filters.sortBy);
+    if (filters.page) params.append('page', filters.page.toString());
+    if (filters.pageSize) params.append('page_size', filters.pageSize.toString());
+
+    const response = await axios.get<ApiSuccessResponse<PaginatedResponse<Link> | Link[]>>(`${API_BASE_URL}/links?${params.toString()}`);
+
+    // Check if response is paginated or simple array (backward compatibility)
+    const data = response.data.data;
+
+    // If data has 'items' property, it's a paginated response
+    if (data && typeof data === 'object' && 'items' in data) {
+      const paginatedData = data as any; // Backend returns snake_case fields
+      return {
+        items: paginatedData.items,
+        total: paginatedData.total,
+        page: paginatedData.page,
+        pageSize: paginatedData.page_size,
+        totalPages: paginatedData.total_pages,
+      };
+    }
+
+    // Otherwise, it's a simple array (backward compatibility for non-filtered requests)
+    const items = Array.isArray(data) ? data : [];
+    const total = response.data.count || items.length;
+    const page = filters.page || 1;
+    const pageSize = filters.pageSize || total;
+    const totalPages = Math.ceil(total / pageSize);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages,
+    };
+  },
 };
 
 // Auth API
@@ -173,7 +240,7 @@ export const authApi = {
   // Google OAuth login
   googleLogin: async (credential: string): Promise<AuthResponse> => {
     const response = await axios.post<AuthResponse>(`${API_BASE_URL}/auth/google`, {
-      token: credential,
+      credential: credential,
     });
     return response.data;
   },

@@ -52,7 +52,6 @@ export default function GoogleLoginButton({ onSuccess, onError }: GoogleLoginBut
     <GoogleLogin
       onSuccess={handleSuccess}
       onError={handleError}
-      useOneTap
       theme="outline"
       size="large"
       text="signin_with"
