@@ -1,8 +1,7 @@
 """Link management endpoints."""
 
 from fastapi import APIRouter, HTTPException, status, Depends, Query
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+from typing import Dict, Any, Optional
 
 from app.core.database import get_database
 from app.core.exceptions import (
@@ -13,7 +12,7 @@ from app.core.exceptions import (
     link_already_exists_exception,
     invalid_object_id_exception,
 )
-from app.schemas.link import LinkCreate, LinkUpdate, GraphData, LinkSearchRequest, PaginatedLinkResponse, LinkResponse
+from app.schemas.link import LinkCreate, LinkUpdate
 from app.services.link_service import LinkService
 from app.repositories.link_repository import LinkRepository
 from app.utils.helpers import link_document_to_dict
@@ -39,69 +38,35 @@ async def get_links(
     current_user: Dict[str, Any] = Depends(get_current_user),
     service: LinkService = Depends(get_link_service),
     q: Optional[str] = Query(None, description="Search query string"),
-    tags: Optional[List[str]] = Query(None, description="Filter by tags"),
-    category: Optional[str] = Query(None, description="Filter by category"),
-    date_from: Optional[datetime] = Query(None, description="Filter by creation date (from)"),
-    date_to: Optional[datetime] = Query(None, description="Filter by creation date (to)"),
-    sort_by: Optional[str] = Query("created_at_desc", description="Sort field and direction"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
 ):
     """
-    Get all links for the authenticated user with optional search and filtering.
+    Get all links for the authenticated user with optional search.
 
-    Supports full-text search, filtering by tags, category, and date range.
-    Results are paginated and can be sorted by various fields.
+    Supports simple search across title, description, notes, and url.
+    Results are paginated and sorted by creation date (newest first).
 
     Requires authentication.
 
     Args:
-        q: Search query for full-text search across title, description, and notes
-        tags: List of tags to filter by (must match all)
-        category: Category to filter by
-        date_from: Start date for date range filter
-        date_to: End date for date range filter
-        sort_by: Sort field and direction (created_at_desc, created_at_asc, title_asc, score)
+        q: Search query across title, description, notes, and url
         page: Page number (1-indexed)
         page_size: Number of items per page (max 100)
 
     Returns:
-        Paginated response with links, or simple list if no filters (backward compatibility)
+        Paginated response with links, or simple list if no search query
     """
     user_id = str(current_user["_id"])
 
-    # Check if any search/filter parameters are provided
-    has_search_params = any([
-        q is not None,
-        tags is not None,
-        category is not None,
-        date_from is not None,
-        date_to is not None,
-        sort_by != "created_at_desc",
-        page != 1,
-        page_size != 20,
-    ])
-
-    # If no search parameters, maintain backward compatibility
-    if not has_search_params:
+    # If no search query and page 1, maintain backward compatibility
+    if not q and page == 1 and page_size == 20:
         links = await service.get_all_links(user_id)
         formatted_links = [link_document_to_dict(link) for link in links]
         return {"success": True, "count": len(formatted_links), "data": formatted_links}
 
     # Use search functionality
-    search_request = LinkSearchRequest(
-        q=q,
-        tags=tags,
-        category=category,
-        date_from=date_from,
-        date_to=date_to,
-        sort_by=sort_by,
-        page=page,
-        page_size=page_size,
-    )
-    print("search_request", search_request)
-
-    results, total_count = await service.search_links(user_id, search_request)
+    results, total_count = await service.search_links(user_id, q, page, page_size)
     formatted_links = [link_document_to_dict(link) for link in results]
 
     # Calculate total pages

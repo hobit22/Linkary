@@ -145,25 +145,15 @@ class LinkRepository:
         self,
         user_id: str,
         query: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-        category: Optional[str] = None,
-        date_from: Optional[str] = None,
-        date_to: Optional[str] = None,
-        sort_by: str = "created_at_desc",
         skip: int = 0,
         limit: int = 20,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """
-        Search and filter links with pagination.
+        Search links with pagination.
 
         Args:
             user_id: User's ObjectId as string
-            query: Optional search query for full-text search
-            tags: Optional list of tags to filter (must match all)
-            category: Optional category to filter by
-            date_from: Optional start date for filtering
-            date_to: Optional end date for filtering
-            sort_by: Sort field and direction (created_at_desc, created_at_asc, title_asc, score)
+            query: Optional search query (regex search across title, description, notes, and url)
             skip: Number of documents to skip (for pagination)
             limit: Maximum number of documents to return
 
@@ -176,59 +166,21 @@ class LinkRepository:
         # Build the base query
         search_query: Dict[str, Any] = {"user_id": ObjectId(user_id)}
 
-        # Add text search if query provided
+        # Add regex search if query provided (searches across title, description, notes, and url)
         if query:
-            search_query["$text"] = {"$search": query}
-
-        # Filter by tags (must match all provided tags)
-        if tags:
-            search_query["tags"] = {"$all": tags}
-
-        # Filter by category
-        if category:
-            search_query["category"] = category
-
-        # Filter by date range
-        if date_from or date_to:
-            date_filter: Dict[str, Any] = {}
-            if date_from:
-                date_filter["$gte"] = date_from
-            if date_to:
-                date_filter["$lte"] = date_to
-            if date_filter:
-                search_query["created_at"] = date_filter
-
-        # Determine sort criteria and projection
-        projection: Optional[Dict[str, Any]] = None
-        use_text_score = sort_by == "score" and query
-
-        print("search_query",     search_query)
-
-        if use_text_score:
-            # Add text score to projection for sorting
-            projection = {"score": {"$meta": "textScore"}}
+            regex_pattern = {"$regex": query, "$options": "i"}  # case-insensitive
+            search_query["$or"] = [
+                {"title": regex_pattern},
+                {"description": regex_pattern},
+                {"notes": regex_pattern},
+                {"url": regex_pattern},
+            ]
 
         # Get total count for pagination
         total_count = await self.collection.count_documents(search_query)
 
-        # Build the query cursor
-        cursor = self.collection.find(search_query, projection)
-
-        # Apply sorting
-        if sort_by == "created_at_desc":
-            cursor = cursor.sort("created_at", -1)
-        elif sort_by == "created_at_asc":
-            cursor = cursor.sort("created_at", 1)
-        elif sort_by == "title_asc":
-            cursor = cursor.sort("title", 1)
-        elif sort_by == "title_desc":
-            cursor = cursor.sort("title", -1)
-        elif use_text_score:
-            # Sort by text search score (descending)
-            cursor = cursor.sort([("score", {"$meta": "textScore"})])
-        else:
-            # Default fallback
-            cursor = cursor.sort("created_at", -1)
+        # Build the query cursor with sorting (newest first)
+        cursor = self.collection.find(search_query).sort("created_at", -1)
 
         # Apply pagination
         cursor = cursor.skip(skip).limit(limit)
@@ -236,9 +188,6 @@ class LinkRepository:
         # Execute query and collect results
         results = []
         async for doc in cursor:
-            # Remove the score field from results if it exists
-            if "score" in doc:
-                del doc["score"]
             results.append(doc)
 
         return results, total_count
