@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     MONGODB_URI: str
     ENVIRONMENT: str = "development"
 
+    # Elasticsearch settings
+    ELASTICSEARCH_URL: str = "http://localhost:9200"
+    ELASTICSEARCH_INDEX: str = "linkary_links"
+
     # Google OAuth settings
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str = ""  # Optional, not needed for token verification

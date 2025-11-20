@@ -6,6 +6,7 @@ from bson import ObjectId
 
 from app.repositories.link_repository import LinkRepository
 from app.services.metadata import metadata_extractor
+from app.services.elasticsearch_service import ElasticsearchService
 from app.schemas.link import LinkCreate, LinkUpdate, GraphData, GraphNode, GraphEdge
 from app.core.exceptions import (
     LinkNotFoundException,
@@ -26,6 +27,7 @@ class LinkService:
             repository: Link repository instance
         """
         self.repository = repository
+        self.es_service = ElasticsearchService()
 
     async def get_all_links(self, user_id: str) -> List[Dict[str, Any]]:
         """
@@ -108,7 +110,12 @@ class LinkService:
             "updated_at": datetime.utcnow(),
         }
 
-        return await self.repository.create(link_doc)
+        created_link = await self.repository.create(link_doc)
+
+        # Index in Elasticsearch
+        await self.es_service.index_link(created_link)
+
+        return created_link
 
     async def update_link(
         self, link_id: str, link_update: LinkUpdate, user_id: str
@@ -159,6 +166,9 @@ class LinkService:
         if not updated:
             raise LinkNotFoundException(link_id)
 
+        # Update in Elasticsearch
+        await self.es_service.update_link(link_id, updated)
+
         return updated
 
     async def delete_link(self, link_id: str, user_id: str) -> bool:
@@ -187,7 +197,14 @@ class LinkService:
         if str(existing["user_id"]) != user_id:
             raise LinkNotFoundException(link_id)
 
-        return await self.repository.delete(ObjectId(link_id))
+        # Delete from MongoDB
+        deleted = await self.repository.delete(ObjectId(link_id))
+
+        # Delete from Elasticsearch
+        if deleted:
+            await self.es_service.delete_link(link_id)
+
+        return deleted
 
     async def get_graph_data(self, user_id: str) -> GraphData:
         """
@@ -228,7 +245,9 @@ class LinkService:
         self, user_id: str, query: Optional[str], page: int, page_size: int
     ) -> Tuple[List[Dict[str, Any]], int]:
         """
-        Search links with pagination.
+        Search links with pagination using Elasticsearch for better Korean support.
+
+        Falls back to MongoDB regex search if Elasticsearch is unavailable.
 
         Args:
             user_id: User's ObjectId as string
@@ -239,10 +258,37 @@ class LinkService:
         Returns:
             Tuple of (list of matching link documents, total count)
         """
-        # Calculate skip value for pagination
-        skip = (page - 1) * page_size
+        # If no query, use simple MongoDB retrieval
+        if not query:
+            skip = (page - 1) * page_size
+            return await self.repository.search(
+                user_id=user_id,
+                query=None,
+                skip=skip,
+                limit=page_size,
+            )
 
-        # Call repository search method
+        # Try Elasticsearch search first
+        link_ids, total_count = await self.es_service.search_links(
+            user_id=user_id,
+            query=query,
+            page=page,
+            page_size=page_size,
+        )
+
+        # If Elasticsearch returned results, fetch full documents from MongoDB
+        if link_ids:
+            # Fetch documents in the order returned by Elasticsearch
+            links = []
+            for link_id in link_ids:
+                if ObjectId.is_valid(link_id):
+                    link = await self.repository.find_by_id(ObjectId(link_id))
+                    if link:
+                        links.append(link)
+            return links, total_count
+
+        # Fallback to MongoDB regex search if Elasticsearch is unavailable
+        skip = (page - 1) * page_size
         return await self.repository.search(
             user_id=user_id,
             query=query,

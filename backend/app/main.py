@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import get_settings
 from app.core.database import connect_to_mongo, close_mongo_connection
+from app.core.elasticsearch import init_elasticsearch, close_elasticsearch, create_index_with_nori
 from app.api.v1.router import api_v1_router
 
 settings = get_settings()
@@ -16,12 +17,15 @@ async def lifespan(app: FastAPI):
     """
     Lifespan context manager for startup and shutdown events.
 
-    Handles MongoDB connection lifecycle.
+    Handles MongoDB and Elasticsearch connection lifecycle.
     """
     # Startup
     await connect_to_mongo()
+    await init_elasticsearch()
+    await create_index_with_nori()
     yield
     # Shutdown
+    await close_elasticsearch()
     await close_mongo_connection()
 
 
