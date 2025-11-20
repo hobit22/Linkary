@@ -1,22 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 interface SearchBarProps {
   value: string;
   onChange: (value: string) => void;
-  onSearch: () => void;
-  onClear: () => void;
 }
 
-export default function SearchBar({ value, onChange, onSearch, onClear }: SearchBarProps) {
-  const [inputValue, setInputValue] = useState(value);
-
-  // Sync with external value changes
-  useEffect(() => {
-    setInputValue(value);
-  }, [value]);
-
+export default function SearchBar({ value, onChange }: SearchBarProps) {
   // Keyboard shortcut handler (Cmd+K / Ctrl+K)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,20 +25,11 @@ export default function SearchBar({ value, onChange, onSearch, onClear }: Search
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setInputValue(newValue);
-    onChange(newValue);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      onSearch();
-    }
+    onChange(e.target.value);
   };
 
   const handleClear = () => {
-    setInputValue('');
-    onClear();
+    onChange('');
   };
 
   return (
@@ -73,17 +55,16 @@ export default function SearchBar({ value, onChange, onSearch, onClear }: Search
       <input
         id="search-input"
         type="text"
-        value={inputValue}
+        value={value}
         onChange={handleInputChange}
-        onKeyDown={handleKeyDown}
-        placeholder="Search your links... (Press Enter to search)"
+        placeholder="Search your links..."
         className="w-full pl-10 pr-24 py-2.5 sm:py-3 text-sm sm:text-base bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:text-white placeholder-gray-400 dark:placeholder-gray-500 transition-all"
       />
 
       {/* Right side controls */}
       <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
         {/* Clear Button */}
-        {inputValue && (
+        {value && (
           <button
             onClick={handleClear}
             className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors rounded hover:bg-gray-100 dark:hover:bg-gray-700"

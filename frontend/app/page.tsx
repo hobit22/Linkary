@@ -9,11 +9,11 @@ import AddLinkModal from '@/components/AddLinkModal';
 import Notification from '@/components/Notification';
 import GoogleLoginButton from '@/components/GoogleLoginButton';
 import SearchBar from '@/components/SearchBar';
-import FilterPanel, { FilterOptions } from '@/components/FilterPanel';
 import { useClipboardPaste } from '@/hooks/useClipboardPaste';
 import { useNotification } from '@/hooks/useNotification';
 import { useAuth } from '@/hooks/useAuth';
 import { useDevice } from '@/hooks/useDevice';
+import { useDebounce } from '@/hooks/useDebounce';
 import { api, Link, GraphData, PaginatedResponse } from '@/lib/api';
 
 export default function Home() {
@@ -23,16 +23,9 @@ export default function Home() {
   const { notification, showNotification } = useNotification();
   const { isMobile } = useDevice();
 
-  // Search and filter state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchInputValue, setSearchInputValue] = useState('');
-  const [filters, setFilters] = useState<FilterOptions>({
-    tags: [],
-    category: '',
-    dateFrom: '',
-    dateTo: '',
-    sortBy: 'created_at_desc',
-  });
+  // Search state
+  const [searchInput, setSearchInput] = useState('');
+  const searchQuery = useDebounce(searchInput, 300);
   const [currentPage, setCurrentPage] = useState(1);
   const [paginatedData, setPaginatedData] = useState<PaginatedResponse<Link>>({
     items: [],
@@ -61,7 +54,7 @@ export default function Home() {
     fetchAllLinks();
   }, [isAuthenticated]);
 
-  // Fetch data with search and filters
+  // Fetch data with search
   const fetchData = useCallback(async () => {
     if (!isAuthenticated) {
       setLoading(false);
@@ -71,16 +64,19 @@ export default function Home() {
     try {
       setLoading(true);
       const [searchResults, graphDataResult] = await Promise.all([
-        api.searchLinks({
-          q: searchQuery || undefined,
-          tags: filters.tags.length > 0 ? filters.tags : undefined,
-          category: filters.category || undefined,
-          dateFrom: filters.dateFrom || undefined,
-          dateTo: filters.dateTo || undefined,
-          sortBy: filters.sortBy || 'created_at_desc',
-          page: currentPage,
-          pageSize: 20,
-        }),
+        searchQuery
+          ? api.searchLinks({
+              q: searchQuery,
+              page: currentPage,
+              pageSize: 20,
+            })
+          : api.getLinks().then(links => ({
+              items: links.slice((currentPage - 1) * 20, currentPage * 20),
+              total: links.length,
+              page: currentPage,
+              pageSize: 20,
+              totalPages: Math.ceil(links.length / 20),
+            })),
         api.getGraphData(),
       ]);
       setPaginatedData(searchResults);
@@ -91,16 +87,16 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, searchQuery, filters, currentPage, showNotification]);
+  }, [isAuthenticated, searchQuery, currentPage, showNotification]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Reset to page 1 when search/filters change
+  // Reset to page 1 when search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filters]);
+  }, [searchQuery]);
 
   useClipboardPaste({
     onSuccess: async () => {
@@ -123,43 +119,19 @@ export default function Home() {
     }
   };
 
-  // Extract unique tags and categories for filter panel
-  const availableTags = Array.from(new Set(allLinks.flatMap((l) => l.tags))).sort();
-  const availableCategories = Array.from(new Set(allLinks.map((l) => l.category))).sort();
-
   const stats = {
     totalLinks: paginatedData.total,
-    categories: availableCategories.length,
-    tags: availableTags.length,
   };
 
-  const handleSearchInputChange = (value: string) => {
-    setSearchInputValue(value);
-  };
-
-  const handleSearch = () => {
-    setSearchQuery(searchInputValue);
-  };
-
-  const handleSearchClear = () => {
-    setSearchInputValue('');
-    setSearchQuery('');
-  };
-
-  const handleFilterChange = (newFilters: FilterOptions) => {
-    setFilters(newFilters);
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
-  const hasActiveFilters =
-    searchQuery ||
-    filters.tags.length > 0 ||
-    filters.category ||
-    filters.dateFrom ||
-    filters.dateTo;
+  const hasActiveSearch = searchQuery.trim().length > 0;
 
   // Show loading state while checking authentication
   if (authLoading) {
@@ -229,63 +201,45 @@ export default function Home() {
         ) : (
           <div>
             {/* Search Bar */}
-            <div className="mb-4 flex justify-center">
+            <div className="mb-6 flex justify-center">
               <SearchBar
-                value={searchInputValue}
-                onChange={handleSearchInputChange}
-                onSearch={handleSearch}
-                onClear={handleSearchClear}
+                value={searchInput}
+                onChange={handleSearchChange}
               />
             </div>
 
-            {/* Filter Panel and Links Grid */}
-            <div className="lg:grid lg:grid-cols-[280px,1fr] lg:gap-6">
-              {/* Filter Panel - Sidebar on desktop */}
-              <aside className="lg:sticky lg:top-4 lg:self-start">
-                <FilterPanel
-                  availableTags={availableTags}
-                  availableCategories={availableCategories}
-                  filters={filters}
-                  onFilterChange={handleFilterChange}
-                />
-              </aside>
-
-              {/* Main Content */}
-              <div>
-                {/* Header with Stats */}
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4 gap-2">
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-                    {hasActiveFilters ? 'Search Results' : 'All Links'}
-                  </h2>
-                  <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                    {hasActiveFilters ? (
-                      <>Found {paginatedData.total} link{paginatedData.total !== 1 ? 's' : ''}</>
-                    ) : (
-                      <>{stats.totalLinks} links{!isMobile && ` · ${stats.categories} categories · ${stats.tags} tags`}</>
-                    )}
-                  </div>
-                </div>
-
-                {/* Links List */}
-                {paginatedData.items.length > 0 ? (
-                  <LinkList
-                    links={paginatedData.items}
-                    onLinkDeleted={fetchData}
-                    totalCount={paginatedData.total}
-                    currentPage={paginatedData.page}
-                    totalPages={paginatedData.totalPages}
-                    onPageChange={handlePageChange}
-                    searchQuery={searchQuery}
-                  />
+            {/* Header with Stats */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4 gap-2">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+                {hasActiveSearch ? 'Search Results' : 'All Links'}
+              </h2>
+              <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                {hasActiveSearch ? (
+                  <>Found {paginatedData.total} link{paginatedData.total !== 1 ? 's' : ''}</>
                 ) : (
-                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                    {hasActiveFilters
-                      ? 'No links match your search criteria'
-                      : 'No links yet. Add your first link to get started!'}
-                  </div>
+                  <>{stats.totalLinks} links</>
                 )}
               </div>
             </div>
+
+            {/* Links List */}
+            {paginatedData.items.length > 0 ? (
+              <LinkList
+                links={paginatedData.items}
+                onLinkDeleted={fetchData}
+                totalCount={paginatedData.total}
+                currentPage={paginatedData.page}
+                totalPages={paginatedData.totalPages}
+                onPageChange={handlePageChange}
+                searchQuery={searchQuery}
+              />
+            ) : (
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                {hasActiveSearch
+                  ? 'No links match your search'
+                  : 'No links yet. Add your first link to get started!'}
+              </div>
+            )}
           </div>
         )}
       </main>
